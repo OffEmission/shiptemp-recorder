@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>出荷温度記録システム</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232736;
+      --border: #2e3347;
+      --accent: #00d4aa;
+      --accent2: #4f8ef7;
+      --warn: #f7c94f;
+      --danger: #f76f6f;
+      --text: #e8eaf0;
+      --text2: #8890a4;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text2);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    /* Sensor Card */
+    .sensor-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .sensor-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    .sensor-label {
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sensor-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .metric {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .metric-icon { font-size: 18px; margin-bottom: 6px; }
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1;
+    }
+    .metric-value.temp { color: var(--accent); }
+    .metric-value.hum  { color: var(--accent2); }
+    .metric-value.bat  { color: var(--warn); }
+    .metric-unit {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+
+    /* Battery bar */
+    .battery-bar-wrap {
+      margin-top: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      height: 4px;
+      overflow: hidden;
+    }
+    .battery-bar {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--warn);
+      transition: width 0.5s ease;
+    }
+    .battery-bar.low { background: var(--danger); }
+
+    /* Refresh button */
+    .btn-refresh {
+      width: 100%;
+      margin-top: 14px;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text2);
+      font-size: 13px;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn-refresh:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .refresh-spin { display: inline-block; }
+    .spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Form Card */
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .field-group { margin-bottom: 14px; }
+    label {
+      display: block;
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: 'Noto Sans JP', sans-serif;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    input::placeholder { color: var(--text2); opacity: 0.6; }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238890a4' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+    select option { background: var(--surface2); }
+
+    /* Submit button */
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--accent), #00b894);
+      border: none;
+      border-radius: 10px;
+      color: #0f1117;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.05em;
+    }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Status */
+    .status {
+      margin-top: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .status.show { display: flex; }
+    .status.success { background: rgba(0,212,170,0.12); border: 1px solid rgba(0,212,170,0.3); color: var(--accent); }
+    .status.error   { background: rgba(247,111,111,0.12); border: 1px solid rgba(247,111,111,0.3); color: var(--danger); }
+    .status.loading { background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.3); color: var(--accent2); }
+
+    /* History */
+    .history-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .history-title {
+      font-size: 11px;
+      color: var(--text2);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .history-count {
+      background: var(--surface2);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 11px;
+    }
+    .history-empty {
+      text-align: center;
+      color: var(--text2);
+      font-size: 13px;
+      padding: 20px 0;
+    }
+    .history-item {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 4px;
+      align-items: center;
+    }
+    .history-dest {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .history-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+    .history-temp {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      text-align: right;
+    }
+    .history-time {
+      font-size: 10px;
+      color: var(--text2);
+      text-align: right;
+    }
+
+    /* Sensor error state */
+    .sensor-error {
+      background: rgba(247,111,111,0.08);
+      border: 1px solid rgba(247,111,111,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">出荷温度記録</div>
+  <div class="clock" id="clock">--:--:--</div>
+</div>
+
+<!-- センサーカード -->
+<div class="sensor-card">
+  <div class="sensor-label">SwitchBot センサー</div>
+  <div class="sensor-grid">
+    <div class="metric">
+      <div class="metric-icon">🌡️</div>
+      <div class="metric-value temp" id="tempVal">--.-</div>
+      <div class="metric-unit">℃ 温度</div>
+    </div>
+    <div class="metric">
+      <div class="metric-icon">💧</div>
+      <div class="metric-value hum" id="humVal">--</div>
+      <div class="metric-unit">% 湿度</div>
+    </div>
+    <div class="metric">
+      <div class="metric-icon">🔋</div>
+      <div class="metric-value bat" id="batVal">--</div>
+      <div class="metric-unit">% 電池</div>
+      <div class="battery-bar-wrap">
+        <div class="battery-bar" id="batBar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+  <div class="sensor-error" id="sensorError">⚠️ センサーに接続できません。ネットワークを確認してください。</div>
+  <button class="btn-refresh" id="btnRefresh" onclick="fetchTemp()">
+    <span class="refresh-spin" id="refreshIcon">↻</span> 温度を最新に更新
+  </button>
+</div>
+
+<!-- 入力フォーム -->
+<div class="form-card">
+  <div class="sensor-label">出荷情報入力</div>
+
+  <div class="field-group">
+    <label>出荷先</label>
+    <input type="text" id="destination" placeholder="例：株式会社〇〇 東京工場">
+  </div>
+
+  <div class="field-group">
+    <label>品番</label>
+    <input type="text" id="productCode" placeholder="例：ABC-12345">
+  </div>
+
+  <div class="field-group">
+    <label>備考（任意）</label>
+    <input type="text" id="note" placeholder="例：午前便 / 冷蔵品">
+  </div>
+
+  <button class="btn-submit" id="btnSubmit" onclick="record()">
+    ✅ 出荷記録を送信
+  </button>
+
+  <div class="status" id="status"></div>
+</div>
+
+<!-- 記録履歴 -->
+<div class="history-card">
+  <div class="history-title">
+    <span>本日の記録</span>
+    <span class="history-count" id="histCount">0件</span>
+  </div>
+  <div id="historyList">
+    <div class="history-empty">まだ記録がありません</div>
+  </div>
+</div>
+
+<script>
+  // ========================================
+  // 設定：ここだけ編集してください
+  const CONFIG = {
+    TOKEN:      "あなたのSwitchBot Token",
+    SECRET:     "あなたのSwitchBot Secret",
+    DEVICE_ID:  "E77602866547",
+    WEBHOOK:    "https://hook.eu1.make.com/xxxxxxxx"
+  };
+  // ========================================
+
+  let currentData = { temperature: null, humidity: null, battery: null };
+  let history = JSON.parse(localStorage.getItem("shipHistory") || "[]");
+
+  // 時計
+  function updateClock() {
+    const now = new Date();
+    document.getElementById("clock").textContent =
+      now.toLocaleTimeString("ja-JP", {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // SwitchBot署名
+  async function getHeaders() {
+    const t = Date.now().toString();
+    const nonce = crypto.randomUUID();
+    const str = CONFIG.TOKEN + t + nonce;
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(CONFIG.SECRET),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(str));
+    const sign = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    return { "Authorization": CONFIG.TOKEN, "sign": sign, "t": t, "nonce": nonce };
+  }
+
+  // 温度取得
+  async function fetchTemp() {
+    const btn = document.getElementById("btnRefresh");
+    const icon = document.getElementById("refreshIcon");
+    const errEl = document.getElementById("sensorError");
+    btn.disabled = true;
+    icon.classList.add("spinning");
+    errEl.style.display = "none";
+
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(
+        `https://api.switch-bot.com/v1.1/devices/${CONFIG.DEVICE_ID}/status`,
+        { headers }
+      );
+      const data = await res.json();
+      if (data.statusCode === 100) {
+        const b = data.body;
+        currentData = { temperature: b.temperature, humidity: b.humidity, battery: b.battery };
+        document.getElementById("tempVal").textContent = b.temperature.toFixed(1);
+        document.getElementById("humVal").textContent  = b.humidity;
+        document.getElementById("batVal").textContent  = b.battery;
+
+        // バッテリーバー
+        const bar = document.getElementById("batBar");
+        bar.style.width = b.battery + "%";
+        bar.className = "battery-bar" + (b.battery <= 20 ? " low" : "");
+      } else {
+        throw new Error("API error");
+      }
+    } catch(e) {
+      errEl.style.display = "block";
+      document.getElementById("tempVal").textContent = "--.-";
+      document.getElementById("humVal").textContent  = "--";
+      document.getElementById("batVal").textContent  = "--";
+    }
+
+    btn.disabled = false;
+    icon.classList.remove("spinning");
+  }
+
+  // 送信
+  async function record() {
+    const destination = document.getElementById("destination").value.trim();
+    const productCode = document.getElementById("productCode").value.trim();
+    const note        = document.getElementById("note").value.trim();
+
+    if (!destination || !productCode) {
+      showStatus("⚠️ 出荷先と品番を入力してください", "error");
+      return;
+    }
+    if (currentData.temperature === null) {
+      showStatus("⚠️ 先に温度を取得してください", "error");
+      return;
+    }
+
+    const btn = document.getElementById("btnSubmit");
+    btn.disabled = true;
+    showStatus("送信中...", "loading");
+
+    const now = new Date();
+    const recordedAt = now.toLocaleString("ja-JP", {
+      year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit"
+    });
+
+    const payload = {
+      destination,
+      productCode,
+      note,
+      temperature: currentData.temperature,
+      humidity:    currentData.humidity,
+      battery:     currentData.battery,
+      recordedAt
+    };
+
+    try {
+      const res = await fetch(CONFIG.WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        // 履歴に追加
+        history.unshift({ destination, productCode, note,
+          temperature: currentData.temperature, recordedAt });
+        if (history.length > 20) history.pop();
+        localStorage.setItem("shipHistory", JSON.stringify(history));
+        renderHistory();
+
+        showStatus("✅ 記録しました！スプレッドシートに保存されました", "success");
+        document.getElementById("destination").value = "";
+        document.getElementById("productCode").value = "";
+        document.getElementById("note").value = "";
+      } else {
+        showStatus("❌ 送信失敗。もう一度お試しください", "error");
+      }
+    } catch(e) {
+      showStatus("❌ 通信エラー。ネットを確認してください", "error");
+    }
+
+    btn.disabled = false;
+  }
+
+  function showStatus(msg, type) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = "status show " + type;
+    if (type === "success") {
+      setTimeout(() => { el.className = "status"; }, 4000);
+    }
+  }
+
+  // 履歴表示
+  function renderHistory() {
+    const list = document.getElementById("historyList");
+    document.getElementById("histCount").textContent = history.length + "件";
+
+    if (history.length === 0) {
+      list.innerHTML = '<div class="history-empty">まだ記録がありません</div>';
+      return;
+    }
+
+    list.innerHTML = history.map(h => `
+      <div class="history-item">
+        <div>
+          <div class="history-dest">${h.destination}</div>
+          <div class="history-code">${h.productCode}${h.note ? " · " + h.note : ""}</div>
+        </div>
+        <div>
+          <div class="history-temp">${h.temperature.toFixed(1)}℃</div>
+          <div class="history-time">${h.recordedAt.slice(-8, -3)}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // 初期化
+  renderHistory();
+  fetchTemp();
+</script>
+</body>
+</html>

@@ -384,13 +384,9 @@
 
 <script>
   // ========================================
-  // 設定：ここだけ編集してください
   const CONFIG = {
-    TOKEN:      "f2cd22107badac8d5f1cc94b43cd0169042e2cfc49c258acdd7cb5b7c57053c104d5698c04ea08d3e5094b8d05aed4a0",
-    SECRET:     "583674d9f79ca7ec6603e953a6b32a88",
-    DEVICE_ID:  "E77602866547",
-    GAS_URL:   "https://script.google.com/macros/s/AKfycbx1BlmIc9AE3VHW92cgsYsfkmwSNdT3Xbs-5DXsOZDdxqvb8S-Hsls4EgISV5GWdrREPQ/exec"
-    WEBHOOK:    "https://hook.eu1.make.com/38aiwf535wy8tqkm91ygfo9ufpawqjoq"
+    GAS_URL:  "https://script.google.com/macros/s/AKfycbx1BlmIc9AE3VHW92cgsYsfkmwSNdT3Xbs-5DXsOZDdxqvb8S-Hsls4EgISV5GWdrREPQ/exec",
+    WEBHOOK:  "https://hook.eu1.make.com/38aiwf535wy8tqkm91ygfo9ufpawqjoq"
   };
   // ========================================
 
@@ -406,61 +402,46 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  // SwitchBot署名
-  async function getHeaders() {
-    const t = Date.now().toString();
-    const nonce = crypto.randomUUID();
-    const str = CONFIG.TOKEN + t + nonce;
-    const key = await crypto.subtle.importKey(
-      "raw", new TextEncoder().encode(CONFIG.SECRET),
-      { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-    );
-    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(str));
-    const sign = btoa(String.fromCharCode(...new Uint8Array(sig)));
-    return { "Authorization": CONFIG.TOKEN, "sign": sign, "t": t, "nonce": nonce };
-  }
 
-  // 温度取得
+  // 温度取得（GAS Proxy経由）
   async function fetchTemp() {
-  const btn  = document.getElementById("btnRefresh");
-  const icon = document.getElementById("refreshIcon");
-  const errEl = document.getElementById("sensorError");
-  btn.disabled = true;
-  icon.classList.add("spinning");
-  errEl.style.display = "none";
+    const btn   = document.getElementById("btnRefresh");
+    const icon  = document.getElementById("refreshIcon");
+    const errEl = document.getElementById("sensorError");
+    btn.disabled = true;
+    icon.classList.add("spinning");
+    errEl.style.display = "none";
 
-  try {
-    // GAS Proxy経由で取得（CORSなし）
-    const res  = await fetch(CONFIG.GAS_URL);
-    const data = await res.json();
+    try {
+      const res  = await fetch(CONFIG.GAS_URL);
+      const data = await res.json();
 
-    if (data.status === "ok") {
-      currentData = {
-        temperature: data.temperature,
-        humidity:    data.humidity,
-        battery:     data.battery
-      };
-      document.getElementById("tempVal").textContent = data.temperature.toFixed(1);
-      document.getElementById("humVal").textContent  = data.humidity;
-      document.getElementById("batVal").textContent  = data.battery;
+      if (data.status === "ok") {
+        currentData = {
+          temperature: data.temperature,
+          humidity:    data.humidity,
+          battery:     data.battery
+        };
+        document.getElementById("tempVal").textContent = data.temperature.toFixed(1);
+        document.getElementById("humVal").textContent  = data.humidity;
+        document.getElementById("batVal").textContent  = data.battery;
 
-      // バッテリーバー更新
-      const bar = document.getElementById("batBar");
-      bar.style.width = data.battery + "%";
-      bar.className   = "battery-bar" + (data.battery <= 20 ? " low" : "");
-    } else {
-      throw new Error(data.message);
+        const bar = document.getElementById("batBar");
+        bar.style.width = data.battery + "%";
+        bar.className   = "battery-bar" + (data.battery <= 20 ? " low" : "");
+      } else {
+        throw new Error(data.message);
+      }
+    } catch(e) {
+      errEl.style.display = "block";
+      document.getElementById("tempVal").textContent = "--.-";
+      document.getElementById("humVal").textContent  = "--";
+      document.getElementById("batVal").textContent  = "--";
     }
-  } catch(e) {
-    errEl.style.display = "block";
-    document.getElementById("tempVal").textContent = "--.-";
-    document.getElementById("humVal").textContent  = "--";
-    document.getElementById("batVal").textContent  = "--";
-  }
 
-  btn.disabled = false;
-  icon.classList.remove("spinning");
-}
+    btn.disabled = false;
+    icon.classList.remove("spinning");
+  }
 
   // 送信
   async function record() {

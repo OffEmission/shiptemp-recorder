@@ -422,44 +422,45 @@
 
   // 温度取得
   async function fetchTemp() {
-    const btn = document.getElementById("btnRefresh");
-    const icon = document.getElementById("refreshIcon");
-    const errEl = document.getElementById("sensorError");
-    btn.disabled = true;
-    icon.classList.add("spinning");
-    errEl.style.display = "none";
+  const btn  = document.getElementById("btnRefresh");
+  const icon = document.getElementById("refreshIcon");
+  const errEl = document.getElementById("sensorError");
+  btn.disabled = true;
+  icon.classList.add("spinning");
+  errEl.style.display = "none";
 
-    try {
-      const headers = await getHeaders();
-      const res = await fetch(
-        `https://api.switch-bot.com/v1.1/devices/${CONFIG.DEVICE_ID}/status`,
-        { headers }
-      );
-      const data = await res.json();
-      if (data.statusCode === 100) {
-        const b = data.body;
-        currentData = { temperature: b.temperature, humidity: b.humidity, battery: b.battery };
-        document.getElementById("tempVal").textContent = b.temperature.toFixed(1);
-        document.getElementById("humVal").textContent  = b.humidity;
-        document.getElementById("batVal").textContent  = b.battery;
+  try {
+    // GAS Proxy経由で取得（CORSなし）
+    const res  = await fetch(CONFIG.GAS_URL);
+    const data = await res.json();
 
-        // バッテリーバー
-        const bar = document.getElementById("batBar");
-        bar.style.width = b.battery + "%";
-        bar.className = "battery-bar" + (b.battery <= 20 ? " low" : "");
-      } else {
-        throw new Error("API error");
-      }
-    } catch(e) {
-      errEl.style.display = "block";
-      document.getElementById("tempVal").textContent = "--.-";
-      document.getElementById("humVal").textContent  = "--";
-      document.getElementById("batVal").textContent  = "--";
+    if (data.status === "ok") {
+      currentData = {
+        temperature: data.temperature,
+        humidity:    data.humidity,
+        battery:     data.battery
+      };
+      document.getElementById("tempVal").textContent = data.temperature.toFixed(1);
+      document.getElementById("humVal").textContent  = data.humidity;
+      document.getElementById("batVal").textContent  = data.battery;
+
+      // バッテリーバー更新
+      const bar = document.getElementById("batBar");
+      bar.style.width = data.battery + "%";
+      bar.className   = "battery-bar" + (data.battery <= 20 ? " low" : "");
+    } else {
+      throw new Error(data.message);
     }
-
-    btn.disabled = false;
-    icon.classList.remove("spinning");
+  } catch(e) {
+    errEl.style.display = "block";
+    document.getElementById("tempVal").textContent = "--.-";
+    document.getElementById("humVal").textContent  = "--";
+    document.getElementById("batVal").textContent  = "--";
   }
+
+  btn.disabled = false;
+  icon.classList.remove("spinning");
+}
 
   // 送信
   async function record() {
